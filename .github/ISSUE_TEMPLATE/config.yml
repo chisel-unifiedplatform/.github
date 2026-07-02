@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: 🔒 Report a security vulnerability
-    url: https://github.com/chisel-unifiedplatform/.github/security/policy
-    about: Please report security issues privately — do not open a public issue.
-  - name: 💬 Product help & general questions
-    url: https://orphix.ai
-    about: For account, product, or sales questions, contact us at orphix.ai.
