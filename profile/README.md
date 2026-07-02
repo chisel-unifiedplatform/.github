@@ -49,15 +49,6 @@ tools, and guardrails.
 Orphix is a hosted platform. To get access, request a demo or an account at
 [**orphix.ai**](https://orphix.ai).
 
-Building an integration or contributing to a repo here? Start with our
-[Contributing guide](https://github.com/chisel-unifiedplatform/.github/blob/main/CONTRIBUTING.md).
-
-## Security
-
-Found a vulnerability? Please **do not** open a public issue — see our
-[Security Policy](https://github.com/chisel-unifiedplatform/.github/blob/main/SECURITY.md)
-for responsible disclosure.
-
 ---
 
 <div align="center">
