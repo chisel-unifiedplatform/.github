@@ -29,7 +29,8 @@ API = os.environ.get("GITHUB_API_URL", "https://api.github.com")
 
 
 def env(name, default=""):
-    return os.environ.get(name, default).strip()
+    # The composite action passes every input, so an unset input arrives as "" and must fall back too.
+    return os.environ.get(name, "").strip() or default
 
 
 def flag(name, default):

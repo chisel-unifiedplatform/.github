@@ -16,11 +16,13 @@ A blocked deploy fails the job with a clear message, writes a job summary, and
 
 ## Use it
 
-Add it as the **first step of the first job** in a deploy workflow:
+Run it as its **own job** with a read-only token and no secrets, and make every
+other root job wait for it. Pin the action to a full commit SHA, not a tag: a
+tag can be moved, a commit can't.
 
 ```yaml
 jobs:
-  build:
+  guard:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,16 +30,22 @@ jobs:
       checks: read
       statuses: read
     steps:
-      - uses: chisel-unifiedplatform/.github/actions/deploy-guard@v1
+      - name: Deploy guard
+        uses: chisel-unifiedplatform/.github/actions/deploy-guard@<full-commit-sha> # v1
         with:
           target: prod                 # or dev
-          require-approval: "true"     # optional
-          notify-webhook: ${{ secrets.DEPLOY_ALERTS_WEBHOOK }}   # optional
-      - uses: actions/checkout@v4
-      # ...the rest of the job as before
+          mode: warn                   # report only; switch to enforce when the team is ready
+          require-approval: "false"    # "true" once every PR to main gets a review
+
+  build:                               # every job that had no `needs:` before
+    needs: guard
+    # ...unchanged
 ```
 
-If the job already sets `permissions:`, add the four read permissions above to it.
+Why a separate job: the guard then can't see the deploy job's secrets or its
+write token, and can't change files later steps use. The worst a broken or
+tampered guard can do is fail.
+
 Needs `python3` on the runner (present on GitHub-hosted Ubuntu runners).
 
 ## Try it locally
@@ -50,11 +58,9 @@ python3 actions/deploy-guard/guard.py
 
 ## Releasing a new version of the guard
 
-Callers pin `@v1`, so a change here reaches prod deploys only when the tag moves:
-
-```bash
-git tag -f v1 && git push -f origin v1
-```
+Callers pin a commit SHA, so a change here reaches a repo's deploys only when
+that repo updates the SHA in a reviewed PR. The `v1` tag marks the current
+recommended commit; only org admins can move it.
 
 ## Pre-push hook
 
