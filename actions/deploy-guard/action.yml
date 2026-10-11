@@ -1,0 +1,70 @@
+name: Deploy guard
+description: >
+  Refuse to deploy commits that didn't arrive through a merged pull request
+  (and, for prod, through a dev → main merge). Free replacement for branch
+  protection on private repos.
+
+inputs:
+  target:
+    description: "dev or prod"
+    required: true
+  mode:
+    description: "enforce (block the deploy) or warn (report only). Default: enforce for prod, warn for dev"
+    required: false
+    default: ""
+  prod-branch:
+    description: "Branch that tags must be on"
+    required: false
+    default: main
+  require-approval:
+    description: "Require an approving review on the merged PR"
+    required: false
+    default: "false"
+  require-checks:
+    description: "Block if the PR's checks failed"
+    required: false
+    default: "true"
+  blocked-head-branches:
+    description: "Comma-separated PR source branches that may not deploy to prod"
+    required: false
+    default: "dev,develop,development,staging"
+  allowed-head-branches:
+    description: "Comma-separated PR source branch patterns allowed into prod"
+    required: false
+    default: "*"
+  dispatch-actors:
+    description: "Comma-separated GitHub logins allowed to deploy by hand. Empty = anyone with write access"
+    required: false
+    default: ""
+  notify-webhook:
+    description: "Slack or Teams incoming webhook URL, told when a deploy is blocked or warned"
+    required: false
+    default: ""
+  token:
+    description: "Token with read access to pull requests and checks"
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check how this commit arrived
+      shell: bash
+      run: python3 "${{ github.action_path }}/guard.py"
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ github.repository }}
+        SHA: ${{ github.sha }}
+        REF: ${{ github.ref }}
+        EVENT: ${{ github.event_name }}
+        ACTOR: ${{ github.actor }}
+        RUN_ID: ${{ github.run_id }}
+        TARGET: ${{ inputs.target }}
+        MODE: ${{ inputs.mode }}
+        PROD_BRANCH: ${{ inputs.prod-branch }}
+        REQUIRE_APPROVAL: ${{ inputs.require-approval }}
+        REQUIRE_CHECKS: ${{ inputs.require-checks }}
+        BLOCKED_HEAD_BRANCHES: ${{ inputs.blocked-head-branches }}
+        ALLOWED_HEAD_BRANCHES: ${{ inputs.allowed-head-branches }}
+        DISPATCH_ACTORS: ${{ inputs.dispatch-actors }}
+        NOTIFY_WEBHOOK: ${{ inputs.notify-webhook }}
