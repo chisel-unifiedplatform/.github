@@ -10,7 +10,7 @@ name: CI (Node)
 #         typecheck-command: npx tsc --noEmit
 #         test-command: npm test -- --ci
 #
-# Installs with the repo's lockfile (npm, yarn or pnpm), then runs each command
+# Installs with the repo's lockfile (bun, pnpm, yarn or npm; bun wins when bun.lock exists), then runs each command
 # that isn't empty: typecheck, lint, test, build. Read-only token, no secrets.
 
 on:
@@ -58,12 +58,20 @@ jobs:
       - name: Package manager
         id: pm
         run: |
-          if [ -f pnpm-lock.yaml ]; then echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          if [ -f bun.lock ] || [ -f bun.lockb ]; then echo "pm=bun" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then echo "pm=pnpm" >> "$GITHUB_OUTPUT"
           elif [ -f yarn.lock ]; then echo "pm=yarn" >> "$GITHUB_OUTPUT"
           else echo "pm=npm" >> "$GITHUB_OUTPUT"; fi
       - if: steps.pm.outputs.pm == 'pnpm'
         uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - if: steps.pm.outputs.pm == 'bun'
+        uses: oven-sh/setup-bun@v2
+      - if: steps.pm.outputs.pm == 'bun' || (steps.pm.outputs.pm == 'npm' && hashFiles(format('{0}/package-lock.json', inputs.working-directory)) == '')
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+      - if: steps.pm.outputs.pm != 'bun' && !(steps.pm.outputs.pm == 'npm' && hashFiles(format('{0}/package-lock.json', inputs.working-directory)) == '')
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
           cache: ${{ steps.pm.outputs.pm }}
@@ -78,6 +86,7 @@ jobs:
           HUSKY: "0"
         run: |
           case "${{ steps.pm.outputs.pm }}" in
+            bun) bun install --frozen-lockfile ;;
             pnpm) pnpm install --frozen-lockfile ;;
             yarn) yarn install --frozen-lockfile ;;
             *) if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi ;;
