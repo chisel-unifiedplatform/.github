@@ -1,0 +1,138 @@
+name: CI (Python)
+
+# Reusable PR checks for Python services. Call it from a repo's .github/workflows/ci.yml:
+#
+#   jobs:
+#     ci:
+#       uses: chisel-unifiedplatform/.github/.github/workflows/ci-python.yml@<full-commit-sha>
+#       with:
+#         test-command: pytest -q
+#
+# 1. "Breaks on import" check on every .py file: syntax errors and names that are
+#    used but never defined (the NameError class of bug). Fast, no install needed.
+# 2. Optional: install requirements and run the test command, with Postgres and/or
+#    Redis next to it when asked.
+#
+# Runs with a read-only token and no secrets. Never put secrets in the inputs.
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: "3.11"
+      working-directory:
+        type: string
+        default: "."
+      lint-scope:
+        description: "changed = only .py files the PR touches (for repos with old warnings); all = every file"
+        type: string
+        default: changed
+      requirements:
+        description: "space-separated requirement files to install before the tests"
+        type: string
+        default: requirements.txt
+      system-packages:
+        description: "apt packages the requirements need to build (e.g. libpq-dev)"
+        type: string
+        default: ""
+      test-command:
+        description: "empty = no tests, only the import check"
+        type: string
+        default: ""
+      test-env:
+        description: "KEY=value lines exported for the tests (no secrets)"
+        type: string
+        default: ""
+      postgres:
+        type: boolean
+        default: false
+      redis:
+        type: boolean
+        default: false
+      timeout-minutes:
+        type: number
+        default: 20
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Breaks on import
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+      - name: Syntax errors and undefined names
+        env:
+          SCOPE: ${{ inputs.lint-scope }}
+          PYV: ${{ inputs.python-version }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          pip install --quiet ruff==0.6.9
+          if [ "$SCOPE" = all ] || [ -z "$BASE" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+            files=$(git ls-files '*.py')
+          else
+            files=$(git diff --relative --name-only --diff-filter=AMR "$BASE"...HEAD -- '*.py')
+          fi
+          if [ -z "$files" ]; then echo "No Python files to check."; exit 0; fi
+          echo "$files" | wc -l | xargs echo "Checking files:"
+          # E9: syntax errors. F63/F7: broken comparisons and statements. F82: undefined names.
+          echo "$files" | xargs ruff check --no-cache --isolated --select E9,F63,F7,F82 --target-version "py$(echo "$PYV" | tr -d . | cut -c1-3)" --output-format github
+
+  test:
+    name: Tests
+    if: inputs.test-command != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    services:
+      postgres:
+        image: ${{ inputs.postgres && 'postgres:16' || '' }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: ${{ inputs.redis && 'redis:7' || '' }}
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+          cache-dependency-path: ${{ inputs.working-directory }}/requirements*.txt
+      - name: System packages
+        if: inputs.system-packages != ''
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ${{ inputs.system-packages }}
+      - name: Install
+        env:
+          REQS: ${{ inputs.requirements }}
+        run: |
+          python -m pip install --quiet --upgrade pip
+          for f in $REQS; do [ -f "$f" ] && pip install --quiet -r "$f"; done
+          pip install --quiet pytest
+      - name: Test environment
+        if: inputs.test-env != ''
+        env:
+          TEST_ENV: ${{ inputs.test-env }}
+        run: printf '%s\n' "$TEST_ENV" | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' >> "$GITHUB_ENV"
+      - name: Run tests
+        run: ${{ inputs.test-command }}
