@@ -36,6 +36,10 @@ inputs:
     description: "Comma-separated GitHub logins allowed to deploy by hand. Empty = anyone with write access"
     required: false
     default: ""
+  prod-mergers:
+    description: "Comma-separated GitHub logins allowed to merge into the prod branch (release owners). Empty = anyone"
+    required: false
+    default: ""
   notify-webhook:
     description: "Slack or Teams incoming webhook URL, told when a deploy is blocked or warned"
     required: false
@@ -67,4 +71,5 @@ runs:
         BLOCKED_HEAD_BRANCHES: ${{ inputs.blocked-head-branches }}
         ALLOWED_HEAD_BRANCHES: ${{ inputs.allowed-head-branches }}
         DISPATCH_ACTORS: ${{ inputs.dispatch-actors }}
+        PROD_MERGERS: ${{ inputs.prod-mergers }}
         NOTIFY_WEBHOOK: ${{ inputs.notify-webhook }}

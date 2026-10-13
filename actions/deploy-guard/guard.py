@@ -113,6 +113,7 @@ def main():
     need_approval = flag("REQUIRE_APPROVAL", "false")
     need_checks = flag("REQUIRE_CHECKS", "true")
     dispatchers = listing("DISPATCH_ACTORS")
+    mergers = listing("PROD_MERGERS")
     actor = env("ACTOR")
 
     problems, notes = [], []
@@ -141,6 +142,11 @@ def main():
                                     f"release/*, hotfix/* or feature branches instead of the whole of {head}.")
                 elif not any(fnmatch.fnmatch(head, p) for p in allowed_heads):
                     problems.append(f"PR #{pr['number']} comes from {head}; prod only accepts {', '.join(allowed_heads)}.")
+                if mergers:
+                    by = (api(f"/repos/{repo}/pulls/{pr['number']}").get("merged_by") or {}).get("login", "")
+                    if by.lower() not in {m.lower() for m in mergers}:
+                        problems.append(f"PR #{pr['number']} was merged into {branch} by {by or 'someone unknown'}; "
+                                        f"only {', '.join(mergers)} may ship to prod.")
                 if pr["head"]["repo"] and pr["head"]["repo"]["full_name"] != repo:
                     problems.append(f"PR #{pr['number']} comes from a fork ({pr['head']['repo']['full_name']}).")
             if need_approval:
