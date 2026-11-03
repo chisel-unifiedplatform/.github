@@ -60,7 +60,8 @@ permissions:
 jobs:
   check:
     name: Breaks on import
-    runs-on: ubuntu-latest
+    # 24.04, not latest: setup-python has no 3.9 build for ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     defaults:
       run:
@@ -92,7 +93,8 @@ jobs:
   test:
     name: Tests
     if: inputs.test-command != ''
-    runs-on: ubuntu-latest
+    # 24.04, not latest: setup-python has no 3.9 build for ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.timeout-minutes }}
     services:
       postgres:
